@@ -16,7 +16,8 @@
  */
 namespace Optimizely\Event\Dispatcher;
 
-use GuzzleHttp\Client as HttpClient;
+use Exception;
+use Guzzle\Http\Client as HttpClient;
 use Optimizely\Event\LogEvent;
 
 /**
@@ -32,7 +33,7 @@ class DefaultEventDispatcher implements EventDispatcherInterface
     const TIMEOUT = 10;
 
     /**
-     * @var \GuzzleHttp\Client Guzzle HTTP client to send requests.
+     * @var \Guzzle\Http\Client Guzzle HTTP client to send requests.
      */
     private $httpClient;
 
@@ -44,12 +45,19 @@ class DefaultEventDispatcher implements EventDispatcherInterface
     public function dispatchEvent(LogEvent $event)
     {
         $options = [
-            'headers' => $event->getHeaders(),
-            'json' => $event->getParams(),
             'timeout' => DefaultEventDispatcher::TIMEOUT,
-            'connect_timeout' => DefaultEventDispatcher::TIMEOUT
+            'connect_timeout' => DefaultEventDispatcher::TIMEOUT,
         ];
 
-        $this->httpClient->request($event->getHttpVerb(), $event->getUrl(), $options);
+        switch($event->getHttpVerb()) {
+            case 'POST':
+                $request = $this->httpClient->post($event->getUrl(), $event->getHeaders(), $options);
+                $request->setBody(json_encode($event->getParams()), 'application/json');
+                break;
+            default:
+                throw new Exception($event->getHttpVerb() . ' not supported.');
+        }
+
+        $request->send();
     }
 }

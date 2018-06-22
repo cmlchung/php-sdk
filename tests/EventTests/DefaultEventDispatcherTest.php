@@ -16,7 +16,8 @@
  */
 namespace Optimizely\Tests;
 
-use GuzzleHttp\Client as HttpClient;
+use Guzzle\Http\Client as HttpClient;
+use Guzzle\Http\Message\EntityEnclosingRequest as HttpClientRequest;
 use Optimizely\Event\Dispatcher\DefaultEventDispatcher;
 use Optimizely\Event\LogEvent;
 
@@ -38,8 +39,6 @@ class DefaultEventDispatcherTest extends \PHPUnit_Framework_TestCase
         );
 
         $expectedOptions = [
-            'headers' => $logEvent->getHeaders(),
-            'json' => $logEvent->getParams(),
             'timeout' => 10,
             'connect_timeout' => 10
         ];
@@ -47,9 +46,18 @@ class DefaultEventDispatcherTest extends \PHPUnit_Framework_TestCase
         $guzzleClientMock = $this->getMockBuilder(HttpClient::class)
             ->getMock();
 
+        $guzzleClientRequestMock = $this->getMockBuilder(HttpClientRequest::class)
+            ->setConstructorArgs([$logEvent->getHttpVerb(), $logEvent->getUrl(), $logEvent->getHeaders()])
+            ->getMock();
+
         $guzzleClientMock->expects($this->once())
-            ->method('request')
-            ->with($logEvent->getHttpVerb(), $logEvent->getUrl(), $expectedOptions);
+            ->method('post')
+            ->with($logEvent->getUrl(), $logEvent->getHeaders(), $expectedOptions)
+            ->willReturn($guzzleClientRequestMock);
+
+        $guzzleClientRequestMock->expects($this->once())
+            ->method('setBody')
+            ->with(json_encode($logEvent->getParams()), 'application/json');
 
         $eventDispatcher = new DefaultEventDispatcher($guzzleClientMock);
         $eventDispatcher->dispatchEvent($logEvent);
